@@ -1,0 +1,127 @@
+uint width, height, widthWithBoundaries, heightWithBoundaries, size, solverIterationNumber;
+float diffusion, viscocity, densityReduction, deltaTime;
+
+
+
+#pragma kernel LinSolve
+
+RWStructuredBuffer<float> ls_arr;
+StructuredBuffer<float> ls_arr0;
+float ls_a, ls_b;
+
+[numthreads(16, 16, 1)]
+void LinSolve(uint2 id : SV_DispatchThreadID)
+{
+	if (!(id.x >= 1 && id.y >= 1 && id.x <= width && id.y <= height)) return;
+
+	for (uint i = 0; i < solverIterationNumber; i++)
+	{
+		ls_arr[((id.x) + (widthWithBoundaries) * (id.y))] = (ls_arr0[((id.x) + (widthWithBoundaries) * (id.y))] + ls_a * (ls_arr[((id.x - 1) + (widthWithBoundaries) * (id.y))] + ls_arr[((id.x + 1) + (widthWithBoundaries) * (id.y))] + ls_arr[((id.x) + (widthWithBoundaries) * (id.y - 1))] + ls_arr[((id.x) + (widthWithBoundaries) * (id.y + 1))])) / ls_b;
+	}
+}
+
+
+
+#pragma kernel Advect
+
+RWStructuredBuffer<float> ad_arr;
+StructuredBuffer<float> ad_arr0, ad_u, ad_v;
+
+[numthreads(16, 16, 1)]
+void Advect(uint2 id : SV_DispatchThreadID)
+{
+	if (!(id.x >= 1 && id.y >= 1 && id.x <= width && id.y <= height)) return;
+
+	uint i0, j0, i1, j1;
+	float x, y, s0, t0, s1, t1;
+
+	x = id.x - deltaTime * ad_u[((id.x) + (widthWithBoundaries) * (id.y))]; y = id.y - deltaTime * ad_v[((id.x) + (widthWithBoundaries) * (id.y))];
+	if (x < 0.5f) x = 0.5f; if (x > width + 0.5f) x = width + 0.5f; i0 = (uint)
+		x; i1 = i0 + 1;
+	if (y < 0.5f) y = 0.5f; if (y > height + 0.5f) y = height + 0.5f; j0 = (uint)
+		y; j1 = j0 + 1;
+	s1 = x - i0; s0 = 1 - s1; t1 = y - j0; t0 = 1 - t1;
+	ad_arr[((id.x) + (widthWithBoundaries) * (id.y))] = s0 * (t0 * ad_arr0[((i0)+(widthWithBoundaries) * (j0))] + t1 * ad_arr0[((i0)+(widthWithBoundaries) * (j1))]) +
+		s1 * (t0 * ad_arr0[((i1)+(widthWithBoundaries) * (j0))] + t1 * ad_arr0[((i1)+(widthWithBoundaries) * (j1))]);
+}
+
+
+
+#pragma kernel DeterminePressure
+
+RWStructuredBuffer<float> dp_p, dp_p0;
+StructuredBuffer<float> dp_u, dp_v;
+
+[numthreads(16, 16, 1)]
+void DeterminePressure(uint2 id : SV_DispatchThreadID)
+{
+	if (!(id.x >= 1 && id.y >= 1 && id.x <= width && id.y <= height)) return;
+
+	dp_p0[((id.x) + (widthWithBoundaries) * (id.y))] = -0.5f * (dp_u[((id.x + 1) + (widthWithBoundaries) * (id.y))] - dp_u[((id.x - 1) + (widthWithBoundaries) * (id.y))] + dp_v[((id.x) + (widthWithBoundaries) * (id.y + 1))] - dp_v[((id.x) + (widthWithBoundaries) * (id.y - 1))]); //is divergence but has opposite sign
+	dp_p[((id.x) + (widthWithBoundaries) * (id.y))] = 0;
+}
+
+
+
+#pragma kernel ApplyProjection
+
+RWStructuredBuffer<float> ap_u, ap_v;
+StructuredBuffer<float> ap_p;
+
+[numthreads(16, 16, 1)]
+void ApplyProjection(uint2 id : SV_DispatchThreadID)
+{
+	if (!(id.x >= 1 && id.y >= 1 && id.x <= width && id.y <= height)) return;
+
+	ap_u[((id.x) + (widthWithBoundaries) * (id.y))] -= 0.5f * (ap_p[((id.x + 1) + (widthWithBoundaries) * (id.y))] - ap_p[((id.x - 1) + (widthWithBoundaries) * (id.y))]);
+	ap_v[((id.x) + (widthWithBoundaries) * (id.y))] -= 0.5f * (ap_p[((id.x) + (widthWithBoundaries) * (id.y + 1))] - ap_p[((id.x) + (widthWithBoundaries) * (id.y - 1))]);
+}
+
+
+
+#pragma kernel ReduceDensity
+
+RWStructuredBuffer<float> rd_d;
+
+[numthreads(256, 1, 1)]
+void ReduceDensity(uint id : SV_DispatchThreadID)
+{
+	if (!(id < size)) return;
+
+	rd_d[id] -= densityReduction * deltaTime;
+
+	if (rd_d[id] < 0.0) rd_d[id] = 0.0;
+}
+
+
+
+#pragma kernel ResetField
+
+RWStructuredBuffer<float> rf_d;
+RWStructuredBuffer<float> rf_u;
+RWStructuredBuffer<float> rf_v;
+
+[numthreads(256, 1, 1)]
+void ResetField(uint id : SV_DispatchThreadID)
+{
+	if (!(id < size)) return;
+
+	rf_d[id] = 0.0;
+	rf_u[id] = 0.0;
+	rf_v[id] = 0.0;
+}
+
+
+
+#pragma kernel BufferToTexture
+
+RWTexture2D<float4> b2t_texture;
+StructuredBuffer<float> b2t_b;
+
+[numthreads(16, 16, 1)]
+void BufferToTexture(uint2 id : SV_DispatchThreadID)
+{
+	if (!(id.x < width && id.y < height)) return;
+
+	b2t_texture[id] = float4(0.0, 0.0, b2t_b[((id.x + 1) + (widthWithBoundaries) * (id.y + 1))], 1.0);
+}
