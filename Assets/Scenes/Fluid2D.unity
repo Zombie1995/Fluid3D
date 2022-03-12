@@ -2096,8 +2096,8 @@ MonoBehaviour:
   _settings: {fileID: 1803963591}
   _mover: {fileID: 1803963592}
   _fluid: {fileID: 1803963597}
-  Width: 128
-  Height: 64
+  Width: 512
+  Height: 256
 --- !u!81 &1803963594
 AudioListener:
   m_ObjectHideFlags: 0

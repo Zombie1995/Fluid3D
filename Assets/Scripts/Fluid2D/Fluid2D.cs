@@ -177,7 +177,7 @@ public class Fluid2D : MonoBehaviour
         _compute.SetBuffer(_linSolveKernel, "ls_arr0", arr0);
         _compute.SetFloat("ls_a", a);
         _compute.SetFloat("ls_b", b);
-        _compute.Dispatch(_linSolveKernel, _size / 16 + 1, _size / 16 + 1, 1);
+        _compute.Dispatch(_linSolveKernel, _widthWithBoundaries / 16 + 1, _heightWithBoundaries / 16 + 1, 1);
     }
     private void Diffuse(ComputeBuffer arr, ComputeBuffer arr0, float d)
     {
@@ -190,7 +190,7 @@ public class Fluid2D : MonoBehaviour
         _compute.SetBuffer(_advectKernel, "ad_arr0", arr0);
         _compute.SetBuffer(_advectKernel, "ad_u", u);
         _compute.SetBuffer(_advectKernel, "ad_v", v);
-        _compute.Dispatch(_advectKernel, _size / 16 + 1, _size / 16 + 1, 1);
+        _compute.Dispatch(_advectKernel, _widthWithBoundaries / 16 + 1, _heightWithBoundaries / 16 + 1, 1);
     }
     private void Project(ComputeBuffer u, ComputeBuffer v, ComputeBuffer p, ComputeBuffer p0)
     {
@@ -198,12 +198,12 @@ public class Fluid2D : MonoBehaviour
         _compute.SetBuffer(_determinePressureKernel, "dp_p0", p0);
         _compute.SetBuffer(_determinePressureKernel, "dp_u", u);
         _compute.SetBuffer(_determinePressureKernel, "dp_v", v);
-        _compute.Dispatch(_determinePressureKernel, _size / 16 + 1, _size / 16 + 1, 1);
+        _compute.Dispatch(_determinePressureKernel, _widthWithBoundaries / 16 + 1, _heightWithBoundaries / 16 + 1, 1);
         LinSolve(p, p0, 1, 4);
         _compute.SetBuffer(_applyProjectionKernel, "ap_u", u);
         _compute.SetBuffer(_applyProjectionKernel, "ap_v", v);
         _compute.SetBuffer(_applyProjectionKernel, "ap_p", p);
-        _compute.Dispatch(_applyProjectionKernel, _size / 16 + 1, _size / 16 + 1, 1);
+        _compute.Dispatch(_applyProjectionKernel, _widthWithBoundaries / 16 + 1, _heightWithBoundaries / 16 + 1, 1);
     }
 
     private void ReduceDensity()
@@ -220,6 +220,6 @@ public class Fluid2D : MonoBehaviour
     }
     private void BufferToTexture()
     {
-        _compute.Dispatch(_bufferToTextureKernel, _size / 16 + 1, _size / 16 + 1, 1);
+        _compute.Dispatch(_bufferToTextureKernel, _widthWithBoundaries / 16 + 1, _heightWithBoundaries / 16 + 1, 1);
     }
 }
